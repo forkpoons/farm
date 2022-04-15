@@ -2,13 +2,17 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"gitee.com/forkpoons/farm/internal/database"
 	"gitee.com/forkpoons/farm/internal/service"
 	"github.com/gookit/config/v2"
 	"github.com/gookit/config/v2/yaml"
 )
 
 type cnf struct {
-	serverAddr string `mapstructure:"serverAddr"`
+	serverAddr   string
+	databaseType string
+	databaseConn string
 }
 
 func main() {
@@ -23,9 +27,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if err := config.BindStruct("", &c); err != nil {
+	c.serverAddr = config.String("serverAddr")
+	c.databaseType = config.String("databaseType")
+	c.databaseConn = config.String("databaseConn")
+	db, err := database.New(c.databaseType, c.databaseConn)
+	if err != nil {
 		panic(err)
 	}
-	//database.PostTemperature(10)
-	service.Start(c.serverAddr)
+	worker, err := service.New(c.serverAddr, db)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("error while listen http: %v", worker.Start())
 }

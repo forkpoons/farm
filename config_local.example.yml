@@ -1,1 +1,3 @@
-serverAddr: "localhost:8080"
+serverAddr: "localhost:80"
+databaseType: "mysql"
+databaseConn: "admin:qwe123@tcp(localhost:3306)/test"
