@@ -1,0 +1,35 @@
+version: '3.9'
+
+services:
+  mysql:
+    platform: linux/x86_64
+    container_name: "farm_mysql"
+    image: mysql:5.7
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: qwe123
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: qwe123
+      MYSQL_DATABASE: test
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+      - "3333:3306"
+    expose:
+      - 3333
+  api:
+    build: .
+    container_name: "farm_api"
+    command: make run
+    links:
+      - mysql
+    volumes:
+      - .:/app/
+    ports:
+      - "8080:8080"
+    expose:
+      - 8080
+volumes:
+  mysql_data: { }
