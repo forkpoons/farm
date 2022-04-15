@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/forkpoons/farm/internal/service"
+	"gitee.com/forkpoons/farm/internal/service"
 )
 
 func main() {

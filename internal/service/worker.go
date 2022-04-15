@@ -2,7 +2,7 @@ package service
 
 import (
 	"fmt"
-	"github.com/forkpoons/farm/internal/database"
+	"gitee.com/forkpoons/farm/internal/database"
 	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
