@@ -11,12 +11,12 @@ import (
 
 var conn map[string]*websocket.Conn
 
-func Start() {
+func Start(addr string) {
 	conn = make(map[string]*websocket.Conn)
 	log.Println("222")
 	http.HandleFunc("/api/temp", postTemperature)
 	http.HandleFunc("/echo", echo)
-	err := http.ListenAndServe("localhost:8080", nil)
+	err := http.ListenAndServe(addr, nil)
 	if err != nil {
 		log.Println(err)
 		return
