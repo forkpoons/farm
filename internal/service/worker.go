@@ -10,7 +10,8 @@ import (
 )
 
 type repository interface {
-	WriteTemperature(temp int) error
+	WriteTemperature(name string, temp int) error
+	WriteAction(name string, temp bool) error
 }
 
 type worker struct {
@@ -104,7 +105,9 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 				log.Println(err)
 			}
 		case "action":
-
+			if err := w.repo.WriteAction(msgValue[0], msgValue[2] == "on"); err != nil {
+				log.Println(err)
+			}
 		}
 	}
 }
