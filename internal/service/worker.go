@@ -61,14 +61,26 @@ func echo(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		msg := string(message)
+		msgValue := make([]string, 0)
 		nn := 0
-		for n, m := range msg {
-			if m == '|' {
-				nn = n + 1
-				break
+		// ##id|typemsg|value#
+		if msg[0] == '#' && msg[1] == '#' {
+			msg = msg[2:]
+			for n, m := range msg {
+				fmt.Println(nn, "/", n, "/", string(m))
+				if m == '|' {
+					msgValue = append(msgValue, msg[nn:n])
+					nn = n + 1
+				} else if m == '#' {
+					fmt.Println(msgValue)
+					msgValue = append(msgValue, msg[nn:n])
+					break
+				}
 			}
 		}
+		switch msgValue[1] {
+		case "temp":
 
-		log.Printf("recv: %s", message[nn:])
+		}
 	}
 }
