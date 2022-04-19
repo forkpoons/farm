@@ -2,39 +2,52 @@ package service
 
 import (
 	"fmt"
-	"github.com/forkpoons/farm/internal/database"
 	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
 	"net/http"
 )
 
-var conn map[string]*websocket.Conn
-
-func Start() {
-	conn = make(map[string]*websocket.Conn)
-	log.Println("222")
-	http.HandleFunc("/api/temp", postTemperature)
-	http.HandleFunc("/echo", echo)
-	err := http.ListenAndServe("localhost:8080", nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+type repository interface {
+	WriteTemperature(temp int) error
 }
 
-func postTemperature(w http.ResponseWriter, req *http.Request) {
-	database.PostTemperature(1)
+type worker struct {
+	addr string
+	repo repository
+	cons map[string]*websocket.Conn
+}
+
+var conn map[string]*websocket.Conn
+
+func New(addr string, repo repository) (*worker, error) {
+	return &worker{
+		addr: addr,
+		repo: repo,
+		cons: make(map[string]*websocket.Conn),
+	}, nil
+}
+
+func (w *worker) Start() error {
+	http.HandleFunc("/api/temp", w.postTemperature)
+	http.HandleFunc("/echo", w.echo)
+	return http.ListenAndServe(w.addr, nil)
+}
+
+func (w *worker) postTemperature(rw http.ResponseWriter, req *http.Request) {
+	//if err := w.repo.WriteTemperature(1); err != nil {
+	//	вот так будешь вызывать потом
+	//}
 	body, err := ioutil.ReadAll(req.Body)
 	fmt.Println(string(body))
-	w.Header().Set("Content-Type", "application/json")
+	rw.Header().Set("Content-Type", "application/json")
 	for _, qwe := range conn {
 		err := qwe.WriteMessage(1, []byte("qwe"))
 		if err != nil {
 			return
 		}
 	}
-	_, err = w.Write([]byte("ok"))
+	_, err = rw.Write([]byte("ok"))
 	if err != nil {
 		log.Println(err)
 		return
@@ -43,8 +56,8 @@ func postTemperature(w http.ResponseWriter, req *http.Request) {
 
 var upgrader = websocket.Upgrader{} // use default options
 
-func echo(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
+func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
+	c, err := upgrader.Upgrade(rw, r, nil)
 
 	if err != nil {
 		log.Print("upgrade:", err)
