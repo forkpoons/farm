@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gitee.com/forkpoons/farm/internal/database"
-	"gitee.com/forkpoons/farm/internal/service"
+	"github.com/forkpoons/farm/internal/database"
+	"github.com/forkpoons/farm/internal/service"
 	"github.com/gookit/config/v2"
 	"github.com/gookit/config/v2/yaml"
 )

@@ -18,9 +18,10 @@ func New(database, conn string) (*Repository, error) {
 	return &Repository{db: db}, nil
 }
 
-func (r *Repository) WriteTemperature(temp int) error {
+func (r *Repository) WriteTemperature(name string, temp int) error {
 	_, err := r.db.Exec(
-		"INSERT INTO temperatures (`date`, `temp`) VALUES(?,?)",
+		"INSERT INTO temperatures (`name`, `date`, `temp`) VALUES(?,?)",
+		name,
 		time.Now().Add(time.Hour*7),
 		temp,
 	)

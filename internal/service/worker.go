@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 type repository interface {
@@ -29,6 +30,7 @@ func New(addr string, repo repository) (*worker, error) {
 }
 
 func (w *worker) Start() error {
+	conn = make(map[string]*websocket.Conn)
 	http.HandleFunc("/api/temp", w.postTemperature)
 	http.HandleFunc("/echo", w.echo)
 	return http.ListenAndServe(w.addr, nil)
@@ -85,14 +87,23 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 					msgValue = append(msgValue, msg[nn:n])
 					nn = n + 1
 				} else if m == '#' {
-					fmt.Println(msgValue)
 					msgValue = append(msgValue, msg[nn:n])
 					break
 				}
 			}
 		}
+		fmt.Println(msgValue)
 		switch msgValue[1] {
 		case "temp":
+			value, err := strconv.Atoi(msgValue[2])
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			if err := w.repo.WriteTemperature(msgValue[0], value); err != nil {
+				log.Println(err)
+			}
+		case "action":
 
 		}
 	}
