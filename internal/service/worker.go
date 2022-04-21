@@ -32,9 +32,19 @@ func New(addr string, repo repository) (*worker, error) {
 
 func (w *worker) Start() error {
 	conn = make(map[string]*websocket.Conn)
+	http.HandleFunc("/", w.get)
 	http.HandleFunc("/api/temp", w.postTemperature)
 	http.HandleFunc("/echo", w.echo)
 	return http.ListenAndServe(w.addr, nil)
+}
+
+func (w *worker) get(rw http.ResponseWriter, req *http.Request) {
+	log.Println(req.Header)
+	_, err := rw.Write([]byte("ok"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
 }
 
 func (w *worker) postTemperature(rw http.ResponseWriter, req *http.Request) {
@@ -79,11 +89,12 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 		msg := string(message)
 		msgValue := make([]string, 0)
 		nn := 0
+		fmt.Println(msg)
 		// ##id|typemsg|value#
 		if msg[0] == '#' && msg[1] == '#' {
 			msg = msg[2:]
 			for n, m := range msg {
-				fmt.Println(nn, "/", n, "/", string(m))
+				//fmt.Println(nn, "/", n, "/", string(m))
 				if m == '|' {
 					msgValue = append(msgValue, msg[nn:n])
 					nn = n + 1
@@ -96,16 +107,17 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 		fmt.Println(msgValue)
 		switch msgValue[1] {
 		case "temp":
-			value, err := strconv.Atoi(msgValue[2])
+			value, err := strconv.ParseFloat(msgValue[2], 8)
 			if err != nil {
 				log.Println(err)
 				break
 			}
-			if err := w.repo.WriteTemperature(msgValue[0], value); err != nil {
+			if err := w.repo.WriteTemperature(msgValue[0], int(value)); err != nil {
 				log.Println(err)
 			}
 		case "action":
-			if err := w.repo.WriteAction(msgValue[0], msgValue[2] == "on"); err != nil {
+			fmt.Println("action")
+			if err := w.repo.WriteAction(msgValue[0], msgValue[2] == "1"); err != nil {
 				log.Println(err)
 			}
 		}
