@@ -18,6 +18,12 @@ func New(database, conn string) (*Repository, error) {
 	return &Repository{db: db}, nil
 }
 
+func (r *Repository) ReadTemperature(name string) (float64, error) {
+	var temp []float64
+	err := r.db.Select(&temp, "SELECT temp FROM temperatures LIMIT 1")
+	return temp[0], err
+}
+
 func (r *Repository) WriteTemperature(name string, temp int) error {
 	_, err := r.db.Exec(
 		"INSERT INTO temperatures (`name`, `date`, `temp`) VALUES(?,?,?)",

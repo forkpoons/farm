@@ -12,6 +12,7 @@ import (
 type repository interface {
 	WriteTemperature(name string, temp int) error
 	WriteAction(name string, temp bool) error
+	ReadTemperature(name string) (float64, error)
 }
 
 type worker struct {
@@ -52,16 +53,13 @@ func (w *worker) getTemperature(rw http.ResponseWriter, req *http.Request) {
 	//if err := w.repo.WriteTemperature(1); err != nil {
 	//	вот так будешь вызывать потом
 	//}
-	body, err := ioutil.ReadAll(req.Body)
-	fmt.Println(string(body))
+
 	rw.Header().Set("Content-Type", "application/json")
-	for _, qwe := range conn {
-		err := qwe.WriteMessage(1, []byte("qwe"))
-		if err != nil {
-			return
-		}
+	temp, err := w.repo.ReadTemperature("qwe")
+	if err != nil {
+		log.Println(err)
 	}
-	_, err = rw.Write([]byte("ok"))
+	_, err = rw.Write([]byte(fmt.Sprintf("%f", temp)))
 	if err != nil {
 		log.Println(err)
 		return
@@ -125,6 +123,7 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 	defer c.Close()
 
 	_, message, err := c.ReadMessage()
+	err = c.WriteMessage(1, []byte("##10|15#"))
 	conn[string(message)] = c
 	defer delete(conn, string(message))
 	for {
@@ -137,7 +136,7 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 			msg := string(message)
 			msgValue := make([]string, 0)
 			nn := 0
-			fmt.Println("123" + msg)
+			fmt.Println("Message:" + msg)
 			// ##id|typemsg|value#
 			if msg[0] == '#' && msg[1] == '#' {
 				msg = msg[2:]
