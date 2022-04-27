@@ -20,11 +20,11 @@ func New(database, conn string) (*Repository, error) {
 
 func (r *Repository) ReadTemperature(name string) (float64, error) {
 	var temp []float64
-	err := r.db.Select(&temp, "SELECT temp FROM temperatures LIMIT 1")
-	return temp[0], err
+	err := r.db.Select(&temp, "SELECT temp FROM temperatures")
+	return temp[len(temp)-1], err
 }
 
-func (r *Repository) WriteTemperature(name string, temp int) error {
+func (r *Repository) WriteTemperature(name string, temp float64) error {
 	_, err := r.db.Exec(
 		"INSERT INTO temperatures (`name`, `date`, `temp`) VALUES(?,?,?)",
 		name,
