@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type repository interface {
@@ -15,13 +16,25 @@ type repository interface {
 	ReadTemperature(name string) (float64, error)
 }
 
+type device struct {
+	onLine      bool
+	work        bool
+	Temperature float64
+	Humidity    float64
+	lastOnline  time.Time
+	lastData    time.Time
+}
+
+var devices map[string]*device
+
 type worker struct {
 	addr string
 	repo repository
 	cons map[string]*websocket.Conn
 }
 
-var conn map[string]*websocket.Conn
+var connDevice map[string]*websocket.Conn
+var connFront map[string]*websocket.Conn
 
 func New(addr string, repo repository) (*worker, error) {
 	return &worker{
@@ -32,11 +45,14 @@ func New(addr string, repo repository) (*worker, error) {
 }
 
 func (w *worker) Start() error {
-	conn = make(map[string]*websocket.Conn)
+	connDevice = make(map[string]*websocket.Conn)
+	connFront = make(map[string]*websocket.Conn)
 	http.HandleFunc("/", w.get)
 	http.HandleFunc("/api/temp", w.getTemperature)
 	http.HandleFunc("/api/settemp", w.postTemperature)
 	http.HandleFunc("/api/echo", w.echo)
+	http.HandleFunc("/api/echofront", w.echoFront)
+
 	return http.ListenAndServe(w.addr, nil)
 }
 
@@ -90,7 +106,7 @@ func (w *worker) postTemperature(rw http.ResponseWriter, req *http.Request) {
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	if err == nil {
-		for _, con := range conn {
+		for _, con := range connDevice {
 			err := con.WriteMessage(1, []byte("##"+strconv.Itoa(min)+"|"+strconv.Itoa(max)+"#"))
 			if err != nil {
 				log.Println(err)
@@ -113,6 +129,11 @@ func (w *worker) postTemperature(rw http.ResponseWriter, req *http.Request) {
 
 var upgrader = websocket.Upgrader{} // use default options
 
+func (d device) offlineDevice() {
+	d.onLine = false
+	d.lastOnline = time.Now()
+}
+
 func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(rw, r, nil)
 
@@ -124,8 +145,15 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 
 	_, message, err := c.ReadMessage()
 	err = c.WriteMessage(1, []byte("##10|15#"))
-	conn[string(message)] = c
-	defer delete(conn, string(message))
+	connDevice[string(message)] = c
+	if v, ok := devices[string(message)]; ok {
+		v.onLine = true
+	} else {
+		devices[string(message)] = &device{onLine: true, work: false, Temperature: 99.0, Humidity: 99.0, lastOnline: time.Now(), lastData: time.Now()}
+	}
+	defer delete(connDevice, string(message))
+	defer devices[string(message)].offlineDevice()
+
 	for {
 		_, message, err := c.ReadMessage()
 		if err != nil {
@@ -153,13 +181,25 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 				fmt.Println(msgValue)
 				switch msgValue[1] {
 				case "temp":
-					value, err := strconv.ParseFloat(msgValue[2], 8)
-					if err != nil {
-						log.Println(err)
-						break
-					}
-					if err := w.repo.WriteTemperature(msgValue[0], int(value)); err != nil {
-						log.Println(err)
+					if len(msgValue) >= 3 {
+						valueTemp, err := strconv.ParseFloat(msgValue[2], 8)
+						if err != nil {
+							log.Println(err)
+							break
+						}
+						if err := w.repo.WriteTemperature(msgValue[0], int(valueTemp)); err != nil {
+							log.Println(err)
+						}
+						devices[msgValue[0]].Temperature = valueTemp
+						devices[msgValue[0]].lastData = time.Now()
+						if len(msgValue) >= 4 {
+							valueH, err := strconv.ParseFloat(msgValue[3], 8)
+							if err != nil {
+								log.Println(err)
+								break
+							}
+							devices[msgValue[0]].Humidity = valueH
+						}
 					}
 				case "action":
 					fmt.Println("action")
@@ -168,6 +208,34 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+		}
+	}
+}
+
+func (w *worker) echoFront(rw http.ResponseWriter, r *http.Request) {
+	c, err := upgrader.Upgrade(rw, r, nil)
+
+	if err != nil {
+		log.Print("upgrade:", err)
+		return
+	}
+	defer c.Close()
+
+	_, message, err := c.ReadMessage()
+	connFront[string(message)] = c
+
+	defer delete(connDevice, string(message))
+
+	for {
+		_, message, err := c.ReadMessage()
+		if err != nil {
+			log.Println("read:", err)
+			break
+		}
+		if len(message) > 0 {
+			msg := string(message)
+			fmt.Println("Message:" + msg)
+
 		}
 	}
 }
