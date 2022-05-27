@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/forkpoons/farm/internal/database"
 	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
@@ -11,7 +12,7 @@ import (
 )
 
 type repository interface {
-	WriteTemperature(name string, temp int) error
+	WriteTemperature(name string, temp float64) error
 	WriteAction(name string, temp bool) error
 	ReadTemperature(name string) (float64, error)
 }
@@ -23,17 +24,19 @@ type device struct {
 	Humidity    float64
 	lastOnline  time.Time
 	lastData    time.Time
+	*websocket.Conn
 }
 
 var devices map[string]*device
 
+var connDevice map[string]*websocket.Conn
+
 type worker struct {
 	addr string
-	repo repository
+	repo database.Repository
 	cons map[string]*websocket.Conn
 }
 
-var connDevice map[string]*websocket.Conn
 var connFront map[string]*websocket.Conn
 
 func New(addr string, repo repository) (*worker, error) {
@@ -47,6 +50,7 @@ func New(addr string, repo repository) (*worker, error) {
 func (w *worker) Start() error {
 	connDevice = make(map[string]*websocket.Conn)
 	connFront = make(map[string]*websocket.Conn)
+	w.repo.Db
 	http.HandleFunc("/", w.get)
 	http.HandleFunc("/api/temp", w.getTemperature)
 	http.HandleFunc("/api/settemp", w.postTemperature)
@@ -187,7 +191,7 @@ func (w *worker) echo(rw http.ResponseWriter, r *http.Request) {
 							log.Println(err)
 							break
 						}
-						if err := w.repo.WriteTemperature(msgValue[0], int(valueTemp)); err != nil {
+						if err := w.repo.WriteTemperature(msgValue[0], valueTemp); err != nil {
 							log.Println(err)
 						}
 						devices[msgValue[0]].Temperature = valueTemp
