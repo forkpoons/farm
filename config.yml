@@ -1,3 +1,4 @@
-serverAddr: "localhost:80"
+webAddr: "localhost:80"
+iotAddr: "localhost:8005"
 databaseType: "mysql"
 databaseConn: "admin:qwe123@tcp(localhost:3306)/test"
