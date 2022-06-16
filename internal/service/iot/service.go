@@ -10,7 +10,11 @@ import (
 type iotWorker struct {
 	addr        string
 	db          *sqlx.DB
-	greenhouses map[int]*greenhouse.Device
+	greenhouseWorker service
+}
+
+type service interface{
+	Handlers(gh *gin.RouterGroup)
 }
 
 func New(addr string, db *sqlx.DB) (*iotWorker, error) {
@@ -22,11 +26,9 @@ func New(addr string, db *sqlx.DB) (*iotWorker, error) {
 }
 
 func (w *iotWorker) Start() error {
-	greenhouse.ConnDevice = make(map[string]*websocket.Conn)
-	greenhouse.Devices = make(map[string]*greenhouse.Device)
-	greenhouse.Data = w.db
+	w.greenhouseWorker = greenhouse.New(w.db)
 	r := gin.Default()
 	api := r.Group("/api")
-	greenhouse.Handlers(api.Group("/greenhouse"))
+	w.greenhouseWorker.Handlers(api.Group("/greenhouse"))
 	return r.Run()
 }

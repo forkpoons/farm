@@ -7,6 +7,7 @@ import (
 	"log"
 	"strconv"
 	"time"
+	"context"
 )
 
 type Device struct {
@@ -18,10 +19,19 @@ type Device struct {
 	lastData    time.Time
 }
 
-var Devices map[string]*Device
-var ConnDevice map[string]*websocket.Conn
+type worker struct {
+	repo repo
+	devices map[string]*Device
+	connections map[string]*websocket.Conn
+}
 
-func Handlers(gh *gin.RouterGroup) {
+func New(db *sqlx.DB) *worker {
+	return *worker{
+		repo: newDB(context.Background(), db),
+	}
+}
+
+func (w *worker) Handlers(gh *gin.RouterGroup) {
 	gh.GET("/echo", echo)
 }
 

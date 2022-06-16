@@ -3,6 +3,7 @@ module github.com/forkpoons/farm
 go 1.18
 
 require (
+	github.com/gin-gonic/gin v1.7.7
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gookit/config/v2 v2.1.0
 	github.com/gorilla/websocket v1.5.0
@@ -11,7 +12,6 @@ require (
 
 require (
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.7.7 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect

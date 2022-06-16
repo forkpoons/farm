@@ -3,14 +3,26 @@ package greenhouse
 import (
 	"github.com/jmoiron/sqlx"
 	"time"
+	"context"
 )
 
-var Data *sqlx.DB
 
-func ReadTemperature(name string) (float64, error) {
+type repo struct {
+	ctx context.Context
+	db *sqlx.DB
+}
+
+func newDB(ctx context.Context, db *sqlx.DB) *repo {
+	return &repo{
+		db: db,
+		ctx: ctx,
+	}
+}
+
+func (r *repo) ReadTemperature(name string) (float64, error) {
 
 	var temp []float64
-	err := Data.Select(&temp, "SELECT temp FROM temperatures")
+	err := r.db.Select(&temp, "SELECT temp FROM temperatures")
 	return temp[len(temp)-1], err
 }
 
