@@ -1,20 +1,19 @@
 package greenhouse
 
 import (
+	"context"
 	"github.com/jmoiron/sqlx"
 	"time"
-	"context"
 )
-
 
 type repo struct {
 	ctx context.Context
-	db *sqlx.DB
+	db  *sqlx.DB
 }
 
 func newDB(ctx context.Context, db *sqlx.DB) *repo {
 	return &repo{
-		db: db,
+		db:  db,
 		ctx: ctx,
 	}
 }
@@ -26,8 +25,8 @@ func (r *repo) ReadTemperature(name string) (float64, error) {
 	return temp[len(temp)-1], err
 }
 
-func WriteTemperature(name string, temp float64) error {
-	_, err := Data.Exec(
+func (r *repo) WriteTemperature(name string, temp float64) error {
+	_, err := r.db.Exec(
 		"INSERT INTO temperatures (`name`, `date`, `temp`) VALUES(?,?,?)",
 		name,
 		time.Now().Add(time.Hour*7),
@@ -36,8 +35,8 @@ func WriteTemperature(name string, temp float64) error {
 	return err
 }
 
-func WriteAction(name string, action bool) error {
-	_, err := Data.Exec(
+func (r *repo) WriteAction(name string, action bool) error {
+	_, err := r.db.Exec(
 		"INSERT INTO actions (`name`, `date`, `action`) VALUES(?,?,?)",
 		name,
 		time.Now().Add(time.Hour*7),

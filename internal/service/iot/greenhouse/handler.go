@@ -1,13 +1,14 @@
 package greenhouse
 
 import (
+	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/jmoiron/sqlx"
 	"log"
 	"strconv"
 	"time"
-	"context"
 )
 
 type Device struct {
@@ -20,29 +21,31 @@ type Device struct {
 }
 
 type worker struct {
-	repo repo
-	devices map[string]*Device
+	repo        repo
+	devices     map[string]*Device
 	connections map[string]*websocket.Conn
 }
 
 func New(db *sqlx.DB) *worker {
-	return *worker{
-		repo: newDB(context.Background(), db),
+	return &worker{
+		repo:        *newDB(context.Background(), db),
+		devices:     make(map[string]*Device),
+		connections: make(map[string]*websocket.Conn),
 	}
 }
 
 func (w *worker) Handlers(gh *gin.RouterGroup) {
-	gh.GET("/echo", echo)
+	gh.GET("/echo", w.echo)
 }
 
 var upgrader = websocket.Upgrader{}
 
-func (d Device) offlineDevice() {
+func (d *Device) offlineDevice() {
 	d.onLine = false
 	d.lastOnline = time.Now()
 }
 
-func echo(c *gin.Context) {
+func (w *worker) echo(c *gin.Context) {
 	con, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 
 	if err != nil {
@@ -52,16 +55,24 @@ func echo(c *gin.Context) {
 	defer con.Close()
 
 	_, message, err := con.ReadMessage()
+	if string(message[0:5]) != "name:" {
+		if err := con.WriteMessage(1, []byte("error")); err != nil {
+			return
+		}
+		if err = con.Close(); err != nil {
+			return
+		}
+	}
 	err = con.WriteMessage(1, []byte("##10|15#"))
-	ConnDevice[string(message)] = con
-	if v, ok := Devices[string(message)]; ok {
+	w.connections[string(message)] = con
+	if v, ok := w.devices[string(message)]; ok {
 		v.onLine = true
 	} else {
-		Devices[string(message)] = &Device{onLine: true, work: false, Temperature: 99.0, Humidity: 99.0, lastOnline: time.Now(), lastData: time.Now()}
+		w.devices[string(message)] = &Device{onLine: true, work: false, Temperature: 99.0, Humidity: 99.0, lastOnline: time.Now(), lastData: time.Now()}
 	}
-	defer delete(ConnDevice, string(message))
-	defer Devices[string(message)].offlineDevice()
-
+	defer delete(w.connections, string(message))
+	defer w.devices[string(message)].offlineDevice()
+	fmt.Println(w.devices[string(message)])
 	for {
 		_, message, err := con.ReadMessage()
 		if err != nil {
@@ -95,23 +106,23 @@ func echo(c *gin.Context) {
 							log.Println(err)
 							break
 						}
-						if err := WriteTemperature(msgValue[0], valueTemp); err != nil {
+						if err := w.repo.WriteTemperature(msgValue[0], valueTemp); err != nil {
 							log.Println(err)
 						}
-						Devices[msgValue[0]].Temperature = valueTemp
-						Devices[msgValue[0]].lastData = time.Now()
+						w.devices[msgValue[0]].Temperature = valueTemp
+						w.devices[msgValue[0]].lastData = time.Now()
 						if len(msgValue) >= 4 {
 							valueH, err := strconv.ParseFloat(msgValue[3], 8)
 							if err != nil {
 								log.Println(err)
 								break
 							}
-							Devices[msgValue[0]].Humidity = valueH
+							w.devices[msgValue[0]].Humidity = valueH
 						}
 					}
 				case "action":
 					fmt.Println("action")
-					if err := WriteAction(msgValue[0], msgValue[2] == "1"); err != nil {
+					if err := w.repo.WriteAction(msgValue[0], msgValue[2] == "1"); err != nil {
 						log.Println(err)
 					}
 				}
