@@ -17,7 +17,7 @@ type Device struct {
 	Temperature float64
 	Humidity    float64
 	lastOnline  time.Time
-	lastData    time.Time
+	lastTemp    time.Time
 }
 
 type worker struct {
@@ -43,6 +43,7 @@ var upgrader = websocket.Upgrader{}
 func (d *Device) offlineDevice() {
 	d.onLine = false
 	d.lastOnline = time.Now()
+	fmt.Println(d)
 }
 
 func (w *worker) echo(c *gin.Context) {
@@ -63,16 +64,17 @@ func (w *worker) echo(c *gin.Context) {
 			return
 		}
 	}
+	deviceName := string(message[5:])
 	err = con.WriteMessage(1, []byte("##10|15#"))
-	w.connections[string(message)] = con
-	if v, ok := w.devices[string(message)]; ok {
+	w.connections[deviceName] = con
+	if v, ok := w.devices[deviceName]; ok {
 		v.onLine = true
 	} else {
-		w.devices[string(message)] = &Device{onLine: true, work: false, Temperature: 99.0, Humidity: 99.0, lastOnline: time.Now(), lastData: time.Now()}
+		w.devices[deviceName] = &Device{onLine: true, work: false, Temperature: 99.0, Humidity: 99.0, lastOnline: time.Now(), lastTemp: time.Now()}
 	}
-	defer delete(w.connections, string(message))
-	defer w.devices[string(message)].offlineDevice()
-	fmt.Println(w.devices[string(message)])
+	defer delete(w.connections, deviceName)
+	defer w.devices[deviceName].offlineDevice()
+	//fmt.Println(w.devices[deviceName])
 	for {
 		_, message, err := con.ReadMessage()
 		if err != nil {
@@ -84,11 +86,10 @@ func (w *worker) echo(c *gin.Context) {
 			msgValue := make([]string, 0)
 			nn := 0
 			fmt.Println("Message:" + msg)
-			// ##id|typemsg|value#
+			// ##typeMsg|value#
 			if msg[0] == '#' && msg[1] == '#' {
 				msg = msg[2:]
 				for n, m := range msg {
-					//fmt.Println(nn, "/", n, "/", string(m))
 					if m == '|' {
 						msgValue = append(msgValue, msg[nn:n])
 						nn = n + 1
@@ -98,34 +99,35 @@ func (w *worker) echo(c *gin.Context) {
 					}
 				}
 				fmt.Println(msgValue)
-				switch msgValue[1] {
-				case "temp":
-					if len(msgValue) >= 3 {
-						valueTemp, err := strconv.ParseFloat(msgValue[2], 8)
+				if len(msgValue) >= 2 {
+					switch msgValue[0] {
+					case "temp":
+						valueTemp, err := strconv.ParseFloat(msgValue[1], 8)
 						if err != nil {
 							log.Println(err)
 							break
 						}
-						if err := w.repo.WriteTemperature(msgValue[0], valueTemp); err != nil {
+						w.devices[deviceName].Temperature = valueTemp
+						w.devices[deviceName].lastTemp = time.Now()
+						if err := w.repo.WriteTemperature(deviceName, valueTemp); err != nil {
 							log.Println(err)
 						}
-						w.devices[msgValue[0]].Temperature = valueTemp
-						w.devices[msgValue[0]].lastData = time.Now()
-						if len(msgValue) >= 4 {
-							valueH, err := strconv.ParseFloat(msgValue[3], 8)
-							if err != nil {
-								log.Println(err)
-								break
-							}
-							w.devices[msgValue[0]].Humidity = valueH
+					case "humidity":
+						valueH, err := strconv.ParseFloat(msgValue[1], 8)
+						if err != nil {
+							log.Println(err)
+							break
+						}
+						w.devices[deviceName].Humidity = valueH
+					case "action":
+						fmt.Println("action" + msgValue[1])
+						w.devices[deviceName].work = msgValue[1] == "1"
+						if err := w.repo.WriteAction(deviceName, msgValue[1] == "1"); err != nil {
+							log.Println(err)
 						}
 					}
-				case "action":
-					fmt.Println("action")
-					if err := w.repo.WriteAction(msgValue[0], msgValue[2] == "1"); err != nil {
-						log.Println(err)
-					}
 				}
+				fmt.Println(w.devices[deviceName])
 			}
 		}
 	}
