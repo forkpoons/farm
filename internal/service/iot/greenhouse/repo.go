@@ -18,6 +18,12 @@ func newDB(ctx context.Context, db *sqlx.DB) *repo {
 	}
 }
 
+func (r *repo) ReadDevices() ([]Device, error) {
+	var dev []Device
+	err := r.db.Select(&dev, "SELECT * FROM greenhouse")
+	return dev, err
+}
+
 func (r *repo) ReadTemperature(name string) (float64, error) {
 
 	var temp []float64

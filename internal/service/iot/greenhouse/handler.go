@@ -12,12 +12,14 @@ import (
 )
 
 type Device struct {
-	onLine      bool
-	work        bool
-	Temperature float64
-	Humidity    float64
-	lastOnline  time.Time
-	lastTemp    time.Time
+	Id          int       `db:"id"`
+	Name        string    `db:"name"`
+	OnLine      bool      `db:"onLine"`
+	Work        bool      `db:"work"`
+	Temperature float64   `db:"temp"`
+	Humidity    float64   `db:"humidity"`
+	LastOnline  time.Time `db:"lastonline"`
+	LastData    time.Time `db:"lastdata"`
 }
 
 type worker struct {
@@ -27,9 +29,15 @@ type worker struct {
 }
 
 func New(db *sqlx.DB) *worker {
+	repo := *newDB(context.Background(), db)
+	devices := make(map[string]*Device)
+	dev, _ := repo.ReadDevices()
+	for _, d := range dev {
+		devices[d.Name] = &d
+	}
 	return &worker{
-		repo:        *newDB(context.Background(), db),
-		devices:     make(map[string]*Device),
+		repo:        repo,
+		devices:     devices,
 		connections: make(map[string]*websocket.Conn),
 	}
 }
@@ -41,9 +49,8 @@ func (w *worker) Handlers(gh *gin.RouterGroup) {
 var upgrader = websocket.Upgrader{}
 
 func (d *Device) offlineDevice() {
-	d.onLine = false
-	d.lastOnline = time.Now()
-	fmt.Println(d)
+	d.OnLine = false
+	d.LastOnline = time.Now()
 }
 
 func (w *worker) echo(c *gin.Context) {
@@ -64,13 +71,16 @@ func (w *worker) echo(c *gin.Context) {
 			return
 		}
 	}
-	deviceName := string(message[5:])
+	var deviceName string
+	if _, ok := w.devices[string(message[5:])]; ok {
+		deviceName = string(message[5:])
+	}
 	err = con.WriteMessage(1, []byte("##10|15#"))
 	w.connections[deviceName] = con
 	if v, ok := w.devices[deviceName]; ok {
-		v.onLine = true
+		v.OnLine = true
 	} else {
-		w.devices[deviceName] = &Device{onLine: true, work: false, Temperature: 99.0, Humidity: 99.0, lastOnline: time.Now(), lastTemp: time.Now()}
+		w.devices[deviceName] = &Device{OnLine: true, Work: false, Temperature: 99.0, Humidity: 99.0, LastOnline: time.Now(), LastData: time.Now()}
 	}
 	defer delete(w.connections, deviceName)
 	defer w.devices[deviceName].offlineDevice()
@@ -108,7 +118,7 @@ func (w *worker) echo(c *gin.Context) {
 							break
 						}
 						w.devices[deviceName].Temperature = valueTemp
-						w.devices[deviceName].lastTemp = time.Now()
+						w.devices[deviceName].LastData = time.Now()
 						if err := w.repo.WriteTemperature(deviceName, valueTemp); err != nil {
 							log.Println(err)
 						}
@@ -121,7 +131,7 @@ func (w *worker) echo(c *gin.Context) {
 						w.devices[deviceName].Humidity = valueH
 					case "action":
 						fmt.Println("action" + msgValue[1])
-						w.devices[deviceName].work = msgValue[1] == "1"
+						w.devices[deviceName].Work = msgValue[1] == "1"
 						if err := w.repo.WriteAction(deviceName, msgValue[1] == "1"); err != nil {
 							log.Println(err)
 						}
